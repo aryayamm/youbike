@@ -30,7 +30,10 @@ with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
             yb1_bikes    INTEGER,
             yb2_bikes    INTEGER,
             eyb_bikes    INTEGER,
-            source_updated_at TIMESTAMPTZ
+            source_updated_at TIMESTAMPTZ,
+            source_updated_at TIMESTAMPTZ,
+            status INTEGER,
+            parking_spaces INTEGER
         )
     """)
 

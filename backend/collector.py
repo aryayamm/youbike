@@ -50,8 +50,8 @@ def save_snapshots(conn, ids, all_stations):
         source_updated_at = f"{updated}+08:00" if updated else None
 
         conn.execute(
-            "INSERT INTO snapshots (station_id, bikes, empty_docks, yb1_bikes, yb2_bikes, eyb_bikes, source_updated_at) "
-            "VALUES (%s, %s, %s, %s, %s, %s, %s)",
+            "INSERT INTO snapshots (station_id, bikes, empty_docks, yb1_bikes, yb2_bikes, eyb_bikes, source_updated_at, status, parking_spaces) "
+            "VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
             (
                 station_id,
                 station.get("available_spaces"),
@@ -60,6 +60,8 @@ def save_snapshots(conn, ids, all_stations):
                 detail.get("yb2"),
                 detail.get("eyb"),
                 source_updated_at,
+                station.get("status"),
+                station.get("parking_spaces"),
             ),
         )
     return missing
