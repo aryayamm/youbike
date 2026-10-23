@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-
+import AnalyticsChart, { type Row } from "./AnalyticsChart";
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://127.0.0.1:8000";
 
 type Station = {
@@ -11,6 +11,7 @@ type Station = {
   empty_docks: number | null;
   collected_at: string | null;
 }
+
 type Result = {
   station_id: string;
   name_tw: string;
@@ -22,6 +23,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [query, setQuery] = useState("");
   const [results, setResults] = useState<Result[]>([]);
+  const [analytics, setAnalytics] = useState<Row[]>([]);
 
   function loadStations() {
     setLoading(true);
@@ -33,6 +35,9 @@ export default function Home() {
 
   useEffect(() => {
     loadStations();
+    fetch(`${API}/analytics`)
+      .then((res) => res.json())
+      .then((data) => setAnalytics(data));
   }, []);
 
   function search() {
@@ -95,6 +100,7 @@ export default function Home() {
           </div>
         </div>
       ))}
+      <AnalyticsChart rows={analytics} />
     </main>
   );
 }

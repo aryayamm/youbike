@@ -80,3 +80,24 @@ def remove_station(station_id: str):
             (station_id,),
         )
     return {"ok": True}
+ANALYTICS_SQL = """
+    SELECT
+      s.station_id,
+      s.name,
+      EXTRACT(HOUR FROM sn.collected_at AT TIME ZONE 'Asia/Taipei')::int AS hour,
+      ROUND(AVG(sn.bikes), 1)::float AS avg_bikes,
+      COUNT(*) AS samples
+    FROM snapshots sn
+    JOIN stations s ON s.station_id = sn.station_id
+    WHERE (sn.status IS NULL OR sn.status = 1)
+      AND sn.bikes + sn.empty_docks > 0
+      AND s.station_id IN ('500401008', '500401016', '500401004', '508201019')
+    GROUP BY s.station_id, s.name, hour
+    ORDER BY s.name, hour
+"""
+
+@app.get("/analytics")
+def analytics():
+    with psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row) as conn:
+        rows = conn.execute(ANALYTICS_SQL).fetchall()
+    return rows
