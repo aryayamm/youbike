@@ -10,8 +10,7 @@ type Station = {
   bikes: number | null;
   empty_docks: number | null;
   collected_at: string | null;
-};
-
+############aaa
 type Result = {
   station_id: string;
   name_tw: string;
