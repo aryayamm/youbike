@@ -102,3 +102,29 @@ def analytics():
     with psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row) as conn:
         rows = conn.execute(ANALYTICS_SQL).fetchall()
     return rows
+
+SUMMARY_SQL = """
+    SELECT
+      s.station_id,
+      s.name,
+      EXTRACT(DOW  FROM sn.collected_at AT TIME ZONE 'Asia/Taipei')::int AS dow,
+      EXTRACT(HOUR FROM sn.collected_at AT TIME ZONE 'Asia/Taipei')::int AS hour,
+      COUNT(*)::int AS samples,
+      COALESCE(SUM(sn.bikes), 0)::int AS bikes,
+      COALESCE(SUM(sn.yb1_bikes), 0)::int AS yb1,
+      COALESCE(SUM(sn.yb2_bikes), 0)::int AS yb2,
+      COALESCE(SUM(sn.eyb_bikes), 0)::int AS eyb,
+      COALESCE(SUM(sn.empty_docks), 0)::int AS docks
+    FROM snapshots sn
+    JOIN stations s ON s.station_id = sn.station_id
+    WHERE (sn.status = 1
+           OR (sn.status IS NULL AND sn.bikes + sn.empty_docks > 0))
+      AND s.station_id IN ('500401008', '500401016', '500401004', '508201019')
+    GROUP BY s.station_id, s.name, dow, hour
+    ORDER BY s.name, dow, hour
+"""
+
+@app.get("/analytics/summary")
+def analytics_summary():
+    with psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row) as conn:
+        return conn.execute(SUMMARY_SQL).fetchall()
