@@ -10,7 +10,8 @@ type Station = {
   bikes: number | null;
   empty_docks: number | null;
   collected_at: string | null;
-}
+  status: number | null;
+};
 
 type Result = {
   station_id: string;
@@ -85,9 +86,13 @@ export default function Home() {
       {stations.map((s) => (
         <div className="card" key={s.station_id}>
           <h2>{s.name}</h2>
-          <p>
-            Bikes: {s.bikes ?? "-"} | Empty docks: {s.empty_docks ?? "-"}
-          </p>
+            {s.status === 2 ? (
+              <p><strong>Suspended</strong></p>
+            ) : (
+              <p>
+                Bikes: {s.bikes ?? "-"} | Empty docks: {s.empty_docks ?? "-"}
+              </p>
+            )}
           <small>
             {s.collected_at
               ? `Updated: ${new Date(s.collected_at).toLocaleString("en-GB", { timeZone: "Asia/Taipei" })}`

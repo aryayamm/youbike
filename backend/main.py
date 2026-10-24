@@ -23,7 +23,8 @@ app.add_middleware(
 LATEST_SQL = """
     SELECT DISTINCT ON (s.station_id)
            s.station_id, s.name, sn.bikes, sn.empty_docks,
-           sn.yb1_bikes, sn.yb2_bikes, sn.eyb_bikes, sn.collected_at
+           sn.yb1_bikes, sn.yb2_bikes, sn.eyb_bikes, sn.collected_at,
+           sn.status
     FROM stations s
     LEFT JOIN snapshots sn ON sn.station_id = s.station_id
     WHERE s.is_monitored = TRUE
@@ -89,8 +90,8 @@ ANALYTICS_SQL = """
       COUNT(*) AS samples
     FROM snapshots sn
     JOIN stations s ON s.station_id = sn.station_id
-    WHERE (sn.status IS NULL OR sn.status = 1)
-      AND sn.bikes + sn.empty_docks > 0
+    WHERE (sn.status = 1
+           OR (sn.status IS NULL AND sn.bikes + sn.empty_docks > 0))
       AND s.station_id IN ('500401008', '500401016', '500401004', '508201019')
     GROUP BY s.station_id, s.name, hour
     ORDER BY s.name, hour
