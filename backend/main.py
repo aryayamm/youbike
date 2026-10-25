@@ -1,5 +1,6 @@
 import os
 import psycopg
+import time
 from psycopg.rows import dict_row
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -8,6 +9,15 @@ from collector import fetch_stations
 load_dotenv()
 
 app = FastAPI()
+
+_cache = {"at": 0.0, "data": {}}
+
+def get_all_stations():
+    """YouBike's full list, cached for 60 seconds."""
+    if not _cache["data"] or time.time() - _cache["at"] > 60:
+        _cache["data"] = fetch_stations()
+        _cache["at"] = time.time()
+    return _cache["data"]
 
 from fastapi.middleware.cors import CORSMiddleware
 
@@ -47,7 +57,7 @@ def search(q: str):
     if len(q) < 2:
         return []
     results = []
-    for s in fetch_stations().values():
+    for s in get_all_stations().values():
         names = f"{s.get('name_tw', '')} {s.get('name_en', '')}".lower()
         if q in names:
             results.append({
@@ -61,7 +71,7 @@ def search(q: str):
 
 @app.post("/stations/{station_id}")
 def add_station(station_id: str):
-    station = fetch_stations().get(station_id)
+    station = get_all_stations().get(station_id)
     if station is None:
         raise HTTPException(status_code=404, detail="Station not found")
     name = station.get("name_en") or station.get("name_tw") or station_id
@@ -119,7 +129,7 @@ SUMMARY_SQL = """
     JOIN stations s ON s.station_id = sn.station_id
     WHERE (sn.status = 1
            OR (sn.status IS NULL AND sn.bikes + sn.empty_docks > 0))
-      AND s.station_id IN ('500401008', '500401016', '500401004', '508201019')
+        AND s.is_monitored = TRUE
     GROUP BY s.station_id, s.name, dow, hour
     ORDER BY s.name, dow, hour
 """
@@ -128,3 +138,36 @@ SUMMARY_SQL = """
 def analytics_summary():
     with psycopg.connect(os.environ["DATABASE_URL"], row_factory=dict_row) as conn:
         return conn.execute(SUMMARY_SQL).fetchall()
+
+@app.get("/map/stations")
+def map_stations(min_lat: float, max_lat: float, min_lng: float, max_lng: float):
+    with psycopg.connect(os.environ["DATABASE_URL"]) as conn:
+        rows = conn.execute(
+            "SELECT station_id FROM stations WHERE is_monitored = TRUE"
+        ).fetchall()
+    monitored = {r[0] for r in rows}
+
+    out = []
+    for s in get_all_stations().values():
+        try:
+            lat = float(s.get("lat"))
+            lng = float(s.get("lng"))
+        except (TypeError, ValueError):
+            continue
+        if not (min_lat <= lat <= max_lat and min_lng <= lng <= max_lng):
+            continue
+        sid = str(s.get("station_no"))
+        out.append({
+            "station_id": sid,
+            "name_en": s.get("name_en"),
+            "name_tw": s.get("name_tw"),
+            "lat": lat,
+            "lng": lng,
+            "bikes": s.get("available_spaces"),
+            "docks": s.get("empty_spaces"),
+            "status": s.get("status"),
+            "monitored": sid in monitored,
+        })
+        if len(out) >= 300:
+            break
+    return out

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
 } from "recharts";
@@ -17,15 +17,15 @@ type Metric = "bikes" | "docks";
 const BIKE_TYPES: Record<TypeKey, { label: string; keys: ("yb1" | "yb2" | "eyb")[] }> = {
   all: { label: "All", keys: ["yb1", "yb2", "eyb"] },
   yellow: { label: "Yellow", keys: ["yb2"] },
-  orange: { label: "Orange", keys: ["yb1"] },
+  orange: { label: "Orange", keys: ["eyb"] },
 };
 const TYPE_OPTIONS = (Object.keys(BIKE_TYPES) as TypeKey[]).map((k) => ({
   value: k, label: BIKE_TYPES[k].label,
 }));
 const BAR_COLORS: Record<TypeKey, string> = {
-  all: "#6d28d9", yellow: "#eab308", orange: "#f97316",
+  all: "#4c1d95", yellow: "#6d28d9", orange: "#8b5cf6",
 };
-const DOCK_COLOR = "#0d9488";
+const DOCK_COLOR = "#7c3aed";
 
 const MIN_SAMPLES = 3; // hide hours with too little data
 const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -50,7 +50,7 @@ function average(b: Bucket | undefined, metric: Metric, type: TypeKey): number |
 // One hue per metric, lightness does the work: colour-blind safe and not harsh.
 function cellColor(v: number, max: number, metric: Metric) {
   const t = max > 0 ? v / max : 0;
-  const hue = metric === "bikes" ? 262 : 174;
+  const hue = metric === "bikes" ? 262 : 270;
   return `hsl(${hue} 55% ${94 - t * 56}%)`;
 }
 
@@ -75,7 +75,77 @@ function Segmented<T extends string>({
     </div>
   );
 }
+function StationPicker({
+  stations, selected, onChange, disabled,
+}: {
+  stations: { id: string; name: string }[];
+  selected: string[];
+  onChange: (ids: string[]) => void;
+  disabled?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
 
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    document.addEventListener("mousedown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("mousedown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open]);
+
+  const label =
+    selected.length === stations.length
+      ? "All stations"
+      : selected.length === 1
+        ? stations.find((s) => s.id === selected[0])?.name ?? "1 station"
+        : `${selected.length} of ${stations.length} stations`;
+
+  function toggle(id: string) {
+    if (selected.includes(id)) {
+      if (selected.length === 1) return; // keep at least one ticked
+      onChange(selected.filter((x) => x !== id));
+    } else {
+      onChange([...selected, id]);
+    }
+  }
+
+  return (
+    <div className="picker" ref={ref}>
+      <button
+        type="button" className="dash-select picker-btn" disabled={disabled}
+        aria-expanded={open} onClick={() => setOpen(!open)}
+      >
+        {label} <span aria-hidden="true">▾</span>
+      </button>
+      {open && (
+        <div className="picker-pop" role="group" aria-label="Stations">
+          <button
+            type="button" className="picker-all"
+            onClick={() => onChange(stations.map((s) => s.id))}
+          >
+            Select all
+          </button>
+          {stations.map((s) => (
+            <label key={s.id} className="picker-row">
+              <input
+                type="checkbox" checked={selected.includes(s.id)}
+                onChange={() => toggle(s.id)}
+              />
+              {s.name}
+            </label>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 function ChartCard({
   title, subtitle, data, color, loading,
 }: {
@@ -96,7 +166,7 @@ function ChartCard({
         <div style={{ width: "100%", height: 220 }}>
           <ResponsiveContainer>
             <BarChart data={data} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-              <CartesianGrid vertical={false} stroke="#eee" />
+              <CartesianGrid vertical={false} stroke="#ebe5f7" />``
               <XAxis dataKey="hour" tickLine={false} axisLine={false}
                      interval="preserveStartEnd" tick={{ fontSize: 12 }} />
               <YAxis tickLine={false} axisLine={false} tick={{ fontSize: 12 }} />
@@ -121,6 +191,7 @@ export default function Dashboard({ api }: { api: string }) {
   const [metric, setMetric] = useState<Metric>("bikes");
   const [heatType, setHeatType] = useState<TypeKey>("all");
   const [picked, setPicked] = useState<string | null>(null);
+  const [heatSel, setHeatSel] = useState<string[] | null>(null); // null = all stations
 
   function load() {
     setState("loading");
@@ -154,15 +225,21 @@ export default function Dashboard({ api }: { api: string }) {
     return b;
   }, [scoped]);
 
+  const heatScoped = useMemo(
+    () => (heatSel === null ? rows : rows.filter((r) => heatSel.includes(r.station_id))),
+    [rows, heatSel]
+  );
+  const heatIds = heatSel ?? stations.map((s) => s.id);
+
   const weekBuckets = useMemo(() => {
     const m = new Map<string, Bucket>();
-    scoped.forEach((r) => {
+    heatScoped.forEach((r) => {
       const k = `${r.dow}-${r.hour}`;
       if (!m.has(k)) m.set(k, emptyBucket());
       addTo(m.get(k)!, r);
     });
     return m;
-  }, [scoped]);
+  }, [heatScoped]);
 
   const bikeData = hourBuckets.map((b, h) => ({ hour: h, value: average(b, "bikes", chartType) }));
   const dockData = hourBuckets.map((b, h) => ({ hour: h, value: average(b, "docks", "all") }));
@@ -249,6 +326,12 @@ export default function Dashboard({ api }: { api: string }) {
             label="Bike type for heatmap" value={heatType}
             options={TYPE_OPTIONS} onChange={setHeatType}
             disabled={loading || metric === "docks"}
+          />
+        <StationPicker
+            stations={stations}
+            selected={heatIds}
+            disabled={loading}
+            onChange={(ids) => setHeatSel(ids.length === stations.length ? null : ids)}
           />
           {metric === "docks" && (
             <span className="dash-sub" style={{ margin: 0 }}>
