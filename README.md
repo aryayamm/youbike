@@ -8,6 +8,8 @@ I plan on doing this project for 2 weeks since i don't have much free time lol.
 
 **Demo:** https://nthu-bike.vercel.app
 
+![NTHU YouBike Ride website](images/youbike-demo.jpeg)
+
 ## Features
 - Bike availability and empty docks per station, split by bike type youbike 1.0, 2.0, and 2.0E
 - Add or remove monitored stations by name search or from a map
