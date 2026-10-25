@@ -31,14 +31,15 @@ cron-job.org (every 5 min) -> GitHub Actions -> collector.py -> NeonDB (Postgres
 Next.js site (Vercel) -> FastAPI backend (Vercel) -------------------+
 ```
 
-- **Collector** (`backend/collector.py`): fetches the YouBike station list, then saves one row per monitored station into the `snapshots` table. Old rows are never overwritten.
+- **Collector** (`backend/collector.py`): fetches the YouBike station list, then saves one row per monitored station into snapshots.
 - **API** (`backend/main.py`): FastAPI endpoints for the latest station data, station search, add/remove, map data, and analytics.
-- **Frontend** (`frontend/`): Next.js and TypeScript. Charts use Recharts, the map uses Leaflet, icons come from lucide.
+- **Frontend** (`frontend/`): Next.js and TypeScript. Charts use Recharts, the map uses esri, icons come from lucide.
 - **Database**: NeonDB (PostgreSQL) with two tables, `stations` and `snapshots`.
 
 Notes from building it:
 
 - GitHub's own cron schedule skipped most runs on a small repo, so cron-job.org triggers the workflow every 5 minutes instead.
+- cron-job or github actiosn sometimes fail 10 times a day, but data is enough
 - Each snapshot stores the station's `status`. Analytics skip suspended stations (for example during a typhoon) so closed stations don't count as empty ones.
 
 ## Project structure
@@ -69,10 +70,10 @@ pip install -r requirements.txt
 Create `backend/.env`:
 
 ```
-DATABASE_URL=postgresql://...your NeonDB connection string...
+DATABASE_URL=postgresql://..
 ```
 
-Then:
+Then run database setup and fetch data from youbike api:
 
 ```bash
 python setup_db.py              # creates tables, adds the 4 starter stations
@@ -80,7 +81,7 @@ python collector.py             # saves one round of snapshots
 uvicorn main:app --reload       # API at http://127.0.0.1:8000
 ```
 
-**2. Frontend** (in a second terminal)
+**2. Frontend** 
 
 ```bash
 cd frontend
@@ -88,20 +89,9 @@ npm install
 npm run dev                     # site at http://localhost:3000
 ```
 
-The site calls `http://127.0.0.1:8000` by default. To point it elsewhere, set `NEXT_PUBLIC_API_URL`.
-
 ## Deployment
 
 - Backend and frontend are two separate Vercel projects from this repo (root directories `backend` and `frontend`).
 - Backend environment variables: `DATABASE_URL`, `ALLOWED_ORIGINS` (the frontend's URL).
 - Frontend environment variable: `NEXT_PUBLIC_API_URL` (the backend's URL).
 - GitHub Actions needs a `DATABASE_URL` repository secret.
-
-## Data source
-
-Station data comes from YouBike's public JSON feed: https://apis.youbike.com.tw/json/station-yb2.json
-
-## Roadmap
-
-- Trip planner with stops and routes using YouBike stations
-- More analytics as history builds up
